@@ -1,5 +1,58 @@
 --------------------------- Clientes ------------------------------
 
+------------------- Hitorico Bloqueios -----------------------------------------------------------------------
+
+-- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_Historico_Bloqueios`
+
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_Historico_Bloqueios` AS 
+with
+       base_cl as (
+              select
+              distinct
+                     cl.uuid as  CustomerID
+                     ,cl.document as CPF_Cliente
+                     ,cl.status as StatusConta
+                     ,RANK() OVER (PARTITION BY cl.uuid ORDER BY ev.event_date desc) AS Rank_Ult_Atual
+                     ,Ev.status as StatusEvento
+                     ,ev.observation as MotivoStatus
+                     ,ev.sub_classification as SubClassificacao
+                     ,ev.sub_classification_obs as Observacao
+                     ,ev.user_name as Analista
+                     ,ev.event_date as DataStatus
+                     ,FORMAT_DATE("%Y%m",ev.event_date)as Safra_Ev
+
+              FROM `eai-datalake-data-sandbox.core.customers`             cl
+              left join `eai-datalake-data-sandbox.core.address`          en on en.id = cl.address_id
+              left join `eai-datalake-data-sandbox.core.customer_event`   Ev on ev.customer_id = cl.id
+              ), base2 as ( 
+ select
+    CustomerID,
+    CPF_Cliente,
+    CONCAT(
+            COALESCE(MotivoStatus, ''),
+            CASE WHEN MotivoStatus IS NOT NULL AND SubClassificacao IS NOT NULL THEN ' | ' ELSE ' | Sem SubClassificacao' END,
+            COALESCE(SubClassificacao, ''),
+            CASE WHEN SubClassificacao IS NOT NULL AND Observacao IS NOT NULL THEN ' | ' ELSE ' | Sem Observacao | ' END,
+            COALESCE(Observacao, ''),
+            CASE WHEN Observacao IS NOT NULL AND Analista IS NOT NULL THEN ' | ' ELSE '' END,
+            COALESCE(Analista, '')
+    ) AS Historico_Bloqueio,
+    DataStatus as Dt_HistoricoBloq, 
+    Rank_Ult_Atual
+ from base_cl 
+where Rank_Ult_Atual >= 2
+and StatusEvento = 'BLOCK'
+--and CPF_cliente in ('37608291800','03170313762')
+              ), base3 as ( 
+                
+                select 
+                      *, 
+                      RANK() OVER (PARTITION BY CustomerID ORDER BY Dt_HistoricoBloq desc) AS Rank_bloqueio 
+                from base2
+) select * from base3 where Rank_bloqueio = 1
+;
+
+
 ------------------- Crivo Cadastro Cartão -----------------------------------------------------------------------
 
 -- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_trans_PayPal_Crivo_Cartao`
@@ -87,17 +140,17 @@ with
         Cpf_Cliente
         ,esteira
         ,data_cadastro
-        ,tree_score as ScoreZaig
+        ,score as ScoreZaig
         ,decisao
-        ,gps_latitude
-        ,gps_longitude
+        --,gps_latitude
+        --,gps_longitude
         ,case when indicators like '%Not_validated_email%' then 'EmailNaoValidado' else 'NA' end as Flag_Email_NaoVal
         ,case when indicators like '%Not_validated_phone%' then 'CelularNaoValidado' else 'NA' end as Flag_Celular_NaoVal
         ,case when indicators like '%name_and_email_and_mother_name_full_uppercase%' then 'CaixaAltaNomeMae' else 'NA' end as Flag_NomeMae_CaixaAlta
 
-        ,RANK() OVER (PARTITION BY cpf ORDER BY data_cadastro desc) AS Rank_Ult_Decisao
+        ,RANK() OVER (PARTITION BY cpf ORDER BY data_cadastro, natural_person_id  desc) AS Rank_Ult_Decisao
 
-        from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` 
+        from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado` 
         where
         decisao = "automatically_approved"
         ) 
@@ -105,6 +158,7 @@ with
         * 
         from base 
         where Rank_Ult_Decisao = 1
+        --and Cpf_Cliente = '56701100805'
 
 
 ;
@@ -246,9 +300,9 @@ p.customer_id
 ,cl.document as CPF_Cliente
 ,p.order_id
 ,ord.store_id
-,case when p.order_id = cbk.order_id and pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY") then 'Contestado' else 'NaoContestado' end as Flag_Contestacao
-,case when pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY") then 1 else 0 end as Qtd_TPV_PayPal
-,case when pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY") then pt.transaction_value else 0 end as TPV_PayPal
+,case when p.order_id = cbk.order_id and pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY","APPLE_PAY") then 'Contestado' else 'NaoContestado' end as Flag_Contestacao
+,case when pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY","APPLE_PAY") then 1 else 0 end as Qtd_TPV_PayPal
+,case when pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY","APPLE_PAY") then pt.transaction_value else 0 end as TPV_PayPal
 ,Sum(pt.transaction_value) as TPV
 ,count(pt.transaction_value) as QtdTransacao
 
@@ -276,7 +330,7 @@ join (
 where 
 date(pt.created_at) >= current_date - 90
 and pt.transaction_value > 0
-and pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY")
+and pt.payment_method in ("CREDIT_CARD","DEBIT_CARD","DIGITAL_WALLET","GOOGLE_PAY","APPLE_PAY")
 --and p.customer_id = 'CUS-e7ef6b1d-67ae-4933-aba4-d2f77d851594'
 group by 1,2,3,4,5,6,7
 
@@ -496,21 +550,21 @@ END AS RegiaoCliente
 ,ph.number as Telefone
 ,ph.type as TelefoneTipo
 ,date(cl.created_at) as Dt_Abertura
-,ClTrusted.Data_alteracao 
+,ClTrusted.Dt_AtualizacaoTrusted 
 ,FORMAT_DATE("%Y%m",cl.created_at)as Safra_Abertura
 ,CASE
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=5 THEN '01_<5DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=30 THEN '02_<30DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=60 THEN '03_<60DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=90 THEN '04_<90DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=120 THEN '05_<120DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=160 THEN '06_<160DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=190 THEN '07_<190DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=220 THEN '08_<220DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=260 THEN '09_<260DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=290 THEN '10_<290DIAS'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) <=365 THEN '11_<=1ANO'
-    WHEN DATETIME_DIFF(DATE(ClTrusted.Data_alteracao), DATE(cl.created_at), DAY) >365 THEN '12_+1ANO'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=5 THEN '01_<5DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=30 THEN '02_<30DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=60 THEN '03_<60DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=90 THEN '04_<90DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=120 THEN '05_<120DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=160 THEN '06_<160DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=190 THEN '07_<190DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=220 THEN '08_<220DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=260 THEN '09_<260DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=290 THEN '10_<290DIAS'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) <=365 THEN '11_<=1ANO'
+    WHEN DATETIME_DIFF(DATE(ClTrusted.Dt_AtualizacaoTrusted), DATE(cl.created_at), DAY) >365 THEN '12_+1ANO'
 END AS Flag_Tempo_Trusted
 ,CASE
     WHEN DATETIME_DIFF(DATETIME(current_date), DATETIME(cl.created_at), DAY) <=5 THEN '01_<5DIAS'
@@ -542,7 +596,7 @@ END AS Flag_TempodeConta
 END AS Flag_TempoBloqueado
 
 ,case when cl.trusted = 1 then 'Trusted'else 'NoTrusted' end as Flag_Trusted
-,case when ClTrusted.CPF_Cliente = cl.document and ClTrusted.Data_alteracao >= date(cl.created_at) then 'Trusted' else 'NoTrusted' end as  flag_trusted_atualizado
+,case when ClTrusted.Trusted = 'True' then 'Trusted' else 'NoTrusted' end as  flag_trusted_atualizado
 ,cl.risk_analysis_status as RiskAnalysis
 ,ev.observation as MotivoStatus
 ,ev.sub_classification
@@ -568,7 +622,7 @@ end as MotivoBloqueio
     when Bio.status in ('REJECTED','NOT_VALIDATED') then 'BioRejeitada' else 'BioNaoCapturada' 
 end as Flag_Biometria
 ,case 
-    when cl.document = insp.cpf then 'Sim'    
+    when cast(insp.CPF as INT64) = cast(cl.document as INT64) then 'Sim'    
     else 'Não'
 end as Flag_Funcionario
 ,insp.STATUS as StatusFuncionario
@@ -576,26 +630,52 @@ end as Flag_Funcionario
 
   FROM `eai-datalake-data-sandbox.core.customers`               cl
   left join `eai-datalake-data-sandbox.core.address`            en on en.id = cl.address_id
-  left join `eai-datalake-data-sandbox.core.customer_phone`     id on id.customer_id = cl.id
-  left join (select * from `eai-datalake-data-sandbox.core.phone` where  type ='MOBILE' and area_code is not null)  ph on id.phone_id = ph.id 
+  left join (
+              with base_tel as (
+                  select 
+                      *, 
+                      RANK() OVER (PARTITION BY id.customer_id ORDER BY ph.updated_at, id.phone_id  desc) AS Rank_Tel   
+                  from `eai-datalake-data-sandbox.core.customer_phone` as id   
+                  left join `eai-datalake-data-sandbox.core.phone`as ph  
+                  on id.phone_id = ph.id 
+                  where  type ='MOBILE' and area_code is not null )
+                  select * from base_tel
+                  where Rank_Tel = 1
+                                                             ) as ph on cl.id = ph.customer_id
+            --where cl.uuid = 'CUS-8835a147-0b0d-44eb-af25-ce6e0a1216bb'
   left join (select * from `eai-datalake-data-sandbox.core.customer_event` 
             where status not in ('FACIAL_BIOMETRICS_REJECTED','FACIAL_BIOMETRICS_NOT_VALIDATED','FACIAL_BIOMETRICS_VALIDATED','TEMPORARY_PERMISSION_CASH_OUT')
                                                             )   Ev on ev.customer_id = cl.id
   left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_bio_Capturada` Bio on Bio.customer_id = cl.id
   left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_validar_dados_cadastral_Zaig` zaig on zaig.Cpf_Cliente = cl.document
   ---------------------------------------- Funcionarios -----------------------------------------------------------------
-  left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Base_Inspetoria_2` insp on insp.CPF = cl.document 
+  left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Base_Inspetoria_2` insp on cast(insp.CPF as INT64) = cast(cl.document as INT64)
   ----------------------------------------------------------------------------------------------
   ----------------------------------------Atualização do Trusted
-  left join (select CustomerID,CPF_Cliente,Data_alteracao from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Historico_Perfil_Trusted`) ClTrusted on ClTrusted.CPF_Cliente = cl.document
+  left join (
+              with base_trusted as (
+                  select distinct 
+                      CustomerID,
+                      Trusted,
+                      Dt_AtualizacaoTrusted,
+                      RANK() OVER (PARTITION BY CustomerID ORDER BY Dt_AtualizacaoTrusted desc) AS Rank_Trusted
+                  from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Mudanca_Trusted_NoTrusted_Final`
+                ) select * from base_trusted where Rank_Trusted = 1  
+                                              ) ClTrusted on ClTrusted.CustomerID = cl.uuid
 
 --------------------------- Tabela consolidada clientes ------------------------------
 
 )select
 distinct
 Cl.*
+,c_orb.Dt_Conta
 ,BlMass.Lote as Dt_LoteMassivo
-,BlMass.Motivo as MotivoBloq_Massivo
+--,BlMass.Motivo as MotivoBloq_Massivo
+,case
+when sub_classification = 'Abuso' then 'Abusador Cashback'
+else BlMass.Motivo end as MotivoBloq_Massivo
+,block.Historico_Bloqueio
+,block.Dt_HistoricoBloq
 ,Crivo_Lim.Flag_Risco_Limit_Vol
 ,Crivo_Lim.Flag_Risco_Limit_Val
 ,Cbk_Cli.Flag_Risco_CBK
@@ -603,7 +683,21 @@ Cl.*
 ,card.Flag_Bancos
 ,card.Flag_Card
 ,case when APP.CustomerID = cl.CustomerID then 'MovimentouAPP' else 'ND' end Flag_APP
+,gold.first_transaction_app as Prim_TransacaoAPP
+,gold.last_transaction_app as Ult_TransacaoAPP
+,case when chavepix.customer_id = cl.CustomerID then 'Sim' else 'Não' end as Tem_ChavePix
+,chavepix.Tipo_Chaves
+,chavepix.Qtd_Tipo
+,chavepix.Chaves_Cadastradas
 ,case when CD.customer_id = cl.CustomerID then 'MovimentouContaDigital' else 'ND' end Flag_ContaDigital
+,gold.wallet_balance as Saldo_Conta
+,gold.kmv_balance as KMV_Acumulados
+,gold2.Perfil_Consumidor
+,case when rufra.Doc_Completo = cl.CPF_Cliente then 'Sim' else 'Não' end as Flag_Rufra
+,rufra.Motivo as MotivoRufra
+,rufra.Tipo_Envolvido
+,rufra.Data_Cadastro as Dt_RegistroRufra
+,rufra.LoginInclusao
 ,case 
  when APP.CustomerID = cl.CustomerID and CD.customer_id = cl.CustomerID then 'ClienteAtivo_APP_CD' 
  when APP.CustomerID = cl.CustomerID then 'ClienteAtivo_APP' 
@@ -617,19 +711,19 @@ else 'URBANO'end as Flag_Perfil
 from base_cliente cl
 --------------------------- Bloqueio Massivo ---------------------------------
 left join (
-  with
-base_bloqueio_Massivo as (
-SELECT 
-CustomerID
-,Lote
-,Motivo
-,RANK() OVER (PARTITION BY CustomerID ORDER BY Lote desc) AS Rank_Bloqueio
-FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo_2` 
-order by 1,4
-)
-select
-*
-from base_bloqueio_Massivo where Rank_Bloqueio = 1
+  with base_bloqueio_Massivo as (
+            SELECT 
+            CustomerID
+            ,Lote
+            ,Motivo
+            ,RANK() OVER (PARTITION BY CustomerID ORDER BY Lote,Motivo desc) AS Rank_Bloqueio
+            FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo_2` 
+            order by 1,4
+            )
+          select
+          *
+          from base_bloqueio_Massivo where Rank_Bloqueio = 1  
+          --CustomerID = 'CUS-20135c6e-79ca-485f-80fa-4ae584a8bf3d'
 ) BlMass on BlMass.CustomerID = cl.CustomerID 
 --------------------------- Perfil clientes VIP ------------------------------
 
@@ -656,16 +750,97 @@ AND (ordbnf.origin_type  = 'EAI:UBER' or upper(ordbnf.description) LIKE '%UBER%'
 AND ordbnf.status = 'FINISHED'
 
 ) uber on cast(uber.Cpf_Cliente as Numeric) = cast(cl.CPF_Cliente as Numeric)
+--------------------- Chave Pix -------------------------------------------------
+LEFT JOIN ( 
+  with BASE_CHAVEPIX AS (  
+    select
+    distinct
 
+      id_key.pix_key_id 
+      ,key.key_value AS ChaveCadastrada
+      ,clkey.customer_id
+      ,RANK() OVER (PARTITION BY key.key_value ORDER BY key.created_at  desc) AS Rank_key
+      ,id_key.payment_customer_account_id
+      ,key.id
+      ,FORMAT_DATE("%Y%m",key.created_at)as Safra_Cad_Key
+      ,key.created_at
+      ,key.type
+      ,key.uuid
+      ,key.reason
+      ,key.status
+      ,pca.payment_account_id
+      
+
+  FROM `eai-datalake-data-sandbox.payment.payment_customer_account_pix_key`   id_key
+  join `eai-datalake-data-sandbox.payment.pix_key`                            key     on id_key.pix_key_id = key.id
+  join `eai-datalake-data-sandbox.payment.customer_account`                   clkey   on clkey.payment_customer_account_id = id_key.payment_customer_account_id
+  join `eai-datalake-data-sandbox.payment.payment_customer_account`           pca    on clkey.payment_customer_account_id = pca.id
+  where 
+  --key.type = 'CPF'
+  key.status = 'COMPLETED'
+  --and customer_id = 'CUS-bdd5ecf5-83eb-4938-a20a-b381a57ecff3'
+  order by 3 desc
+
+) select 
+    customer_id,
+    count(pix_key_id) as Chaves_Cadastradas,
+    --Count(distinct pix_key_id) as Qtd_Chaves,
+    count(distinct type) as Qtd_Tipo,
+    string_agg(DISTINCT type,', ') as Tipo_Chaves
+  from BASE_CHAVEPIX 
+  group by 1
+
+) chavepix on chavepix.customer_id = cl.CustomerID
+--------------------- Base Rufra ------------------------------------------
+left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Relatorio_ReportRufra_DW2`  rufra on rufra.Doc_Completo = cl.CPF_Cliente
 --------------------- Limit analise 180 dias ------------------------------------
 left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_tran_limt_cliente` Crivo_Lim on Crivo_Lim.customer_id = cl.CustomerID
 --------------------- CBK analise 180 dias ------------------------------------
 left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_Tpv_Cbk_Clientes` Cbk_Cli on Cbk_Cli.customer_id = cl.CustomerID
 ---------------------------------------- Transaçoes APP ------------------------------------------
 left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_mov_App_clientes`  APP on APP.CustomerID = cl.CustomerID
+left join `eai-datalake-data-sandbox.gold.customers` gold on gold.customer_document = cl.Cpf_Cliente
+left join `eai-datalake-data-sandbox.gold.clientes` as gold2 on gold2.CPF = cl.CPF_Cliente
 ---------------------------------------- Transaçoes ContaDigital ------------------------------------------
 left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_mov_ContaDigital_clientes` CD on CD.customer_id = cl.CustomerID
 left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_trans_PayPal_Crivo_Cartao` card on card.CustomerID = cl.CustomerID
-where Rank_Ult_Atual = 1 and DDD is not null
-
+------------------------------------------ Historico bloqueios ---------------------------------------------
+left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_Historico_Bloqueios` block on block.CustomerID = cl.CustomerID
+------------------------------------------ Data da Conta --------------------------------------------------------
+left join (
+    with base_ContaOrbital as (
+      select 
+        distinct
+          cl.uuid
+          ,cl.document
+          ,CustAccount.created_at as Dt_Conta
+          --,AccountEv.status
+          ,RANK() OVER (PARTITION BY cl.document ORDER BY CustAccount.created_at  desc) AS Rank_Conta
+          from `eai-datalake-data-sandbox.core.customers` Cl 
+          join `eai-datalake-data-sandbox.payment.customer_account` CustAccount on CustAccount.customer_id = Cl.uuid
+          --join `eai-datalake-data-sandbox.core.event` EV
+          join (select distinct * from `eai-datalake-data-sandbox.payment.customer_account_event` 
+          ) AccountEv on AccountEv.customer_account_id = CustAccount.id 
+          where type = 'APPROVED' /* and document = '39046078809' and cl.status <> 'MINIMUM_ACCOUNT'*/
+    ) select * from base_ContaOrbital where Rank_Conta = 1
+    ) c_orb on cast(c_orb.document as numeric) = cast(cl.CPF_Cliente as numeric)
+where cl.Rank_Ult_Atual = 1 and DDD is not null
+--and cl.CustomerID = 'CUS-bdd5ecf5-83eb-4938-a20a-b381a57ecff3'
 ;
+
+
+-----------------------------------------------
+-- VALIDADOR DE DUPLICIDADE                   |
+-----------------------------------------------
+with validador as (
+  select 
+      CPF_Cliente, 
+      count(*) as Quantidade 
+  from `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_base_cliente_Perfil`
+  group by 1
+), base_duplicidade as ( select * from validador 
+  where Quantidade > 1 order by 2 # 
+) select * from base_duplicidade as a
+  join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_base_cliente_Perfil` as b
+  on a.CPF_Cliente = b.CPF_Cliente
+  order by CustomerID 
