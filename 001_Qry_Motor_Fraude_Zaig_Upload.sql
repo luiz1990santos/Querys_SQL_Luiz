@@ -2,12 +2,327 @@
 --> CONSOLIDAÇÃO BASE ZAIG UPLOAD
 --======================================================================================
 
+
+/*
+with data_zaig as (
+SELECT 
+    cast(created_at as timestamp) as data_cadastro
+FROM `eai-datalake-data-sandbox.onboarding.zaig` 
+), fuso as ( select TIMESTAMP(DATETIME(data_cadastro,'America/Sao_Paulo')) as data_cadastro from data_zaig )
+select min(data_cadastro), max(data_cadastro) from fuso;
+*/
+
+-------------------------------------------------------------------
+-- TABELA DA API ZAIG                                             |
+-------------------------------------------------------------------
+
+-- CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_API_Zaig`  AS
+insert into `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_API_Zaig`
+ with base_api_zaig as (
+    SELECT 
+        JSON_VALUE(api, '$.company_name') AS esteira,
+        JSON_VALUE(api, '$.id') AS natural_person_id,
+        JSON_VALUE(api, '$.document_number') AS cpf,
+        JSON_VALUE(api, '$.name') AS nome,
+        JSON_VALUE(api, '$.birthdate') AS nascimento,
+        JSON_VALUE(api, '$.natural_person_key') AS natural_person_key,
+        JSON_VALUE(api, '$.emails[0].email') AS email,
+        JSON_VALUE(api, '$.phones[0].area_code') AS ddd,
+        JSON_VALUE(api, '$.phones[0].number') AS numero,
+        JSON_VALUE(api, '$.mother_name') AS nome_da_mae,
+        JSON_VALUE(api, '$.address.street') AS rua,
+        JSON_VALUE(api, '$.address.number') AS numero_9,
+        JSON_VALUE(api, '$.address.neighborhood') AS bairro,
+        JSON_VALUE(api, '$.address.city') AS cidade,
+        JSON_VALUE(api, '$.address.uf') AS estado,
+        JSON_VALUE(api, '$.address.postal_code') AS cep,
+        JSON_VALUE(api, '$.address.country') AS pais,
+        JSON_VALUE(api, '$.registration_date') AS data_cadastro,
+        JSON_VALUE(api, '$.created_at') AS created_at,
+        JSON_VALUE(api, '$.analysis_status_events[0].new_status') AS decisao,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.reason') AS razao,
+        --JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.credilink.death.is_dead') AS is_dead,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.credilink.basic_data.gender') AS sexo,
+        CONCAT(
+            (SELECT STRING_AGG(
+                CONCAT(
+                    JSON_VALUE(variable, '$.enum')
+                ), 
+                ' | '
+            ) FROM UNNEST(JSON_EXTRACT_ARRAY(api, '$.analysis_status_events[0].analysis_output.indicators')) AS variable)
+        ) AS indicators,
+        JSON_VALUE(api, '$.analysis_status_events.analysis_output.ph3a.title') || ' | ' || JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.ph3a.description') AS analisys_ph3a,
+        JSON_VALUE(api, '$.source.session_id') AS session_id,
+        JSON_VALUE(api, '$.source.platform') AS platform,
+        JSON_VALUE(api, '$.source.ip') AS ip,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.device_scan_data') AS device_scan_data,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.score') AS score,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.checker_rufra_data.score') AS score_Rufra,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.checker_rufra_data.pepvip.user.pep_indicator') AS indicador_pep,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.checker_rufra_data.pepvip.user.pep_indicator') AS indicador_vip,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.checker_rufra_data.risk_level') AS level_risco,
+        JSON_VALUE(api, '$.analysis_status_events[0].analysis_output.checker_rufra_data.rufra_reason') AS decisao_rufra,
+        JSON_VALUE(api, '$.analysis_status_events[0].analyst_name') AS nome_analista,
+        JSON_VALUE(api, '$.analysis_status_events[0].analyst_email') AS email_analista,
+        JSON_VALUE(api, '$.analysis_status_events[0].analyst_key') AS chave_analista,
+        document as Cpf_Cliente,
+        -- api
+    FROM (
+        SELECT 
+            REPLACE(REPLACE(REPLACE(api, "None", "'None'"), "True", "true"), "False", "false") as api,
+            document
+        FROM `eai-datalake-prd.onboarding.zaig`
+
+    ) 
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38
+    ) select * from base_api_zaig 
+    where TIMESTAMP(data_cadastro) >= (select max(TIMESTAMP(data_cadastro)) FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_API_Zaig` )
+    --where esteira = 'Abastece Aí'
+    --and date(data_cadastro) >= '2024-08-12' 
+    --order by data_cadastro
+;
+
+
+
+-------------------------------------------------------------------
+-- TABELA DW ZAIG V2                                              |
+-------------------------------------------------------------------
+-- CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_V2`  AS
+insert into `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_V2`
+    select 
+        distinct 
+           esteira, 
+           natural_person_id, 
+           cpf, 
+           nome, 
+           nascimento, 
+           natural_person_key, 
+           email, 
+           cast(ddd as int64) as ddd, 
+           cast(numero as int64) as numero, 
+           nome_da_mae, 
+           rua, 
+           numero_9, 
+           bairro, 
+           cidade, 
+           estado, 
+           cep, 
+           pais, 
+           cast(data_cadastro as timestamp) as DT_REGISTO_ZAIG_HRAMERICANO,
+           DATETIME(TIMESTAMP(data_cadastro), 'America/Sao_Paulo') AS data_cadastro, 
+           decisao, 
+           razao, 
+           sexo, 
+           indicators, 
+           analisys_ph3a, 
+           session_id, 
+           null as modelo_do_dispositivo,
+           platform as plataforma,
+           ip,
+           --null as pais_do_ip,
+           --null as ip_tor,
+           --null as gps_latitude,
+           --null as gps_longitude,
+           device_scan_data as data_device_scan, 
+           cast(score as INTEGER) as score, 
+           score_Rufra, 
+           indicador_pep, 
+           indicador_vip, 
+           level_risco, 
+           decisao_rufra,
+           nome_analista, 
+           email_analista, 
+           chave_analista, 
+           null as score_makrosystem,
+           Cpf_Cliente
+
+    from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_API_Zaig` 
+    where TIMESTAMP(data_cadastro) >= (select max(TIMESTAMP(data_cadastro)) FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_V2` )
+;
+
+
+-------------------------------------------------------------------
+-- TABELA DW FASE LIGHT                                           |
+-------------------------------------------------------------------
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Light`  AS
+    select 
+        * 
+    from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_V2` 
+    where esteira = 'Abastece Aí - Light'
+    and data_cadastro >= '2024-08-12'
+;
+
+
+-------------------------------------------------------------------
+-- TABELA DW FASE FULL                                            |
+-------------------------------------------------------------------
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Full`  AS
+    select 
+        * 
+    from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_V2` 
+    where esteira = 'Abastece Aí'
+    and data_cadastro >= '2024-08-12'
+;
+
+
+-------------------------------------------------------------------
+-- TABELA DW CONSOLIDADO                                          |
+-------------------------------------------------------------------
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado` as 
+    SELECT 
+        DISTINCT 
+            esteira, 
+            natural_person_id, 
+            cpf, 
+            nome, 
+            CAST(NULL AS STRING) AS nascimento, 
+            CAST(NULL AS STRING) AS natural_person_key, 
+            email, 
+            ddd, 
+            numero, 
+            nome_da_mae, 
+            rua, 
+            numero_9, 
+            bairro, 
+            cidade, 
+            estado, 
+            cep, 
+            pais, 
+            DT_REGISTO_ZAIG_HRAMERICANO, 
+            CAST(data_cadastro AS TIMESTAMP) AS data_cadastro, 
+            decisao, 
+            razao, 
+            --CAST(NULL AS STRING) AS sexo, 
+            indicators, 
+            CAST(NULL AS STRING) AS analisys_ph3a, 
+            session_id, 
+            CAST(modelo_do_dispositivo AS STRING) AS modelo_do_dispositivo, 
+            plataforma, 
+            ip, 
+            data_device_scan, 
+            tree_score AS score, 
+            CAST(NULL AS STRING) AS score_Rufra, 
+            CAST(NULL AS STRING) AS indicador_pep, 
+            CAST(NULL AS STRING) AS indicador_vip, 
+            CAST(NULL AS STRING) AS level_risco, 
+            CAST(NULL AS STRING) AS decisao_rufra, 
+            CAST(NULL AS STRING) AS nome_analista, 
+            CAST(NULL AS STRING) AS email_analista, 
+            score_makrosystem, 
+            Cpf_Cliente
+    FROM 
+        `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` 
+    WHERE 
+        DATE(data_cadastro) <= '2024-08-11'
+
+    UNION ALL 
+
+    SELECT 
+        esteira, 
+        natural_person_id, 
+        cpf, 
+        nome, 
+        nascimento, 
+        natural_person_key, 
+        email, 
+        ddd, 
+        numero, 
+        nome_da_mae, 
+        rua, 
+        numero_9, 
+        bairro, 
+        cidade, 
+        estado, 
+        cep, 
+        pais, 
+        DT_REGISTO_ZAIG_HRAMERICANO, 
+        CAST(data_cadastro AS TIMESTAMP) AS data_cadastro, 
+        decisao, 
+        razao, 
+        --sexo, 
+        indicators, 
+        analisys_ph3a, 
+        session_id, 
+        CAST(modelo_do_dispositivo AS STRING) AS modelo_do_dispositivo, 
+        plataforma, 
+        ip, 
+        data_device_scan, 
+        score, 
+        score_Rufra, 
+        indicador_pep, 
+        indicador_vip, 
+        level_risco, 
+        decisao_rufra, 
+        nome_analista, 
+        email_analista, 
+        --chave_analista, 
+        score_makrosystem, 
+        Cpf_Cliente
+    FROM 
+        `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Light`
+
+    UNION ALL 
+
+    SELECT 
+        esteira, 
+        natural_person_id, 
+        cpf, 
+        nome, 
+        nascimento, 
+        natural_person_key, 
+        email, 
+        ddd, 
+        numero, 
+        nome_da_mae, 
+        rua, 
+        numero_9, 
+        bairro, 
+        cidade, 
+        estado, 
+        cep, 
+        pais, 
+        DT_REGISTO_ZAIG_HRAMERICANO, 
+        CAST(data_cadastro AS TIMESTAMP) AS data_cadastro, 
+        decisao, 
+        razao, 
+        --sexo, 
+        indicators, 
+        analisys_ph3a, 
+        session_id, 
+        CAST(modelo_do_dispositivo AS STRING) AS modelo_do_dispositivo, 
+        plataforma, 
+        ip, 
+        data_device_scan, 
+        score, 
+        score_Rufra, 
+        indicador_pep, 
+        indicador_vip, 
+        level_risco, 
+        decisao_rufra, 
+        nome_analista, 
+        email_analista, 
+        --chave_analista, 
+        score_makrosystem, 
+        Cpf_Cliente
+    FROM 
+        `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Full`
+;
+
+
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Atualizacao` as
+    SELECT 
+      min(data_cadastro) as primeiro_registro,
+      max(data_cadastro) as ultimo_registro
+    from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado`
+;
+
+
 --============================================================================================
 --> MONITORAMENTO MOTOR PREVENÇAO FRAUDE - ONBOARDING  MES - 90 DIAS - PRIMEIRA DECISÃO CPF
 --============================================================================================
 
 -- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Motor_Zaig_PrimairaDecisao` 
--- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig`
+-- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado`
 
 CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Motor_Zaig_PrimairaDecisao` AS 
 
@@ -17,7 +332,7 @@ Base_dados_Zaig as (
           select
           distinct
           *
-          from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` 
+          from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado` 
           where date(data_cadastro) >= current_date - 120
           and decisao <> 'pending'
           --and Cpf_Cliente = '01503263606'
@@ -75,7 +390,7 @@ Base_Classificacao_decisao_Zaig as (
           ,gps_latitude
           ,gps_longitude
           ,data_device_scan*/
-          ,tree_score	
+          ,score	
           ,score_makrosystem
           ,case 
           when score_makrosystem <= 30 then 'Reprovado'
@@ -106,7 +421,7 @@ date(data_cadastro) as Data_Cadastro
 ,razao
 ,Flag_Decisao_Motor
 ,Flag_Decisao_Regra
-,tree_score	
+,score	
 ,score_makrosystem
 ,Flag_Decisao_Makro
 ,count(distinct cpf) as qtd_cliente
@@ -132,7 +447,7 @@ Base_dados_Zaig as (
           select
           distinct
           *
-          from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` 
+          from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado` 
           where date(data_cadastro) >= current_date - 120
           and decisao <> 'pending'
 ), Base_Classificacao_decisao_Zaig as (
@@ -184,7 +499,7 @@ Base_dados_Zaig as (
           ,gps_latitude
           ,gps_longitude
           ,data_device_scan*/
-          ,tree_score	
+          ,score	
           ,score_makrosystem
           ,case 
           when score_makrosystem <= 30 then 'Reprovado'
@@ -210,7 +525,7 @@ cast(a.CPF as NUMERIC) as CPF
 ,a.razao
 ,a.Flag_Decisao_Motor
 ,a.Flag_Decisao_Regra
-,a.tree_score
+,a.score
 ,a.score_makrosystem
 ,a.Flag_Decisao_Makro
 ,a.Flag_Fase
@@ -230,6 +545,16 @@ select
 distinct
 date(data_cadastro) as Data_Cadastro
 ,FORMAT_DATETIME("%Y-%m",data_cadastro) as Safra_Cadastro
+,EXTRACT(HOUR FROM data_cadastro)as Hr_Cadastro
+,case
+  when DATE_DIFF(date(current_date),date(data_cadastro), DAY) = 0 then 'D0'
+  when DATE_DIFF(date(current_date),date(data_cadastro), DAY) = 1 then 'D-01'
+  when DATE_DIFF(date(current_date),date(data_cadastro), DAY) = 7 then 'D-07'
+  when DATE_DIFF(date(current_date),date(data_cadastro), DAY) = 14 then 'D-14'
+  when DATE_DIFF(date(current_date),date(data_cadastro), DAY) = 21 then 'D-21'
+  --when DATE_DIFF(date(current_date),date(data_cadastro), DAY) = 60 then 'D-60'
+  else 'Outros' 
+end as Flag_Filtro_Dias
 ,decisao
 ,razao
 ,esteira
@@ -237,7 +562,7 @@ date(data_cadastro) as Data_Cadastro
 ,Flag_Filtro_Periodo
 ,Flag_Decisao_Motor
 ,Flag_Decisao_Regra
-,tree_score	
+,score	
 ,score_makrosystem
 ,Flag_Decisao_Makro
 ,count(distinct cpf) as qtd_cliente
@@ -245,7 +570,7 @@ date(data_cadastro) as Data_Cadastro
 from Base_Classificacao_decisao_Zaig_3
 where Rank_Ult_Decisao = 1
 and esteira not like '%PJ%'
-group by 1,2,3,4,5,6,7,8,9,10,11,12
+group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14
 
 ;
 
@@ -448,7 +773,7 @@ distinct
           ,razao
           ,case
             when decisao = "automatically_approved" then 'Aprovado'
-            when decisao = "automatically_reproved" then 'Negagado'
+            when decisao = "automatically_reproved" then 'Negado'
           else 'NA' end as Flag_Decisao_Motor
           ,case
             --when razao Like  "%ph3a%" then 'Negado PH3A'
@@ -460,7 +785,7 @@ distinct
             --when decisao = "automatically_reproved" and razao not Like  "%ph3a%" then 'Negado'
           else 'NA' end as Flag_Decisao_Regra
           ,count(*) as qtd_Chamada
-from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig`
+from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado`
 where date(data_cadastro) >= current_date - 365
 --and decisao <> 'pending'
 group by 1,2,3,4,5
@@ -633,7 +958,7 @@ base as (
                 select
                 distinct
                 *
-                from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` 
+                from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado` 
                 where date(data_cadastro) >= current_date - 90
                 and decisao = "automatically_approved"
                 and esteira <> 'Abastece Aí - PJ'
@@ -785,7 +1110,7 @@ group by 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22;
 --                                  |
 -------------------------------------
 
--- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
+-- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado_PJ`
 
 /*
 SELECT 
@@ -796,7 +1121,7 @@ SELECT
     CONCAT(ROUND(COALESCE(COUNT(DISTINCT CASE WHEN razao = 'automatically_approved' THEN legal_person_id END) * 100.0 / NULLIF(COUNT(DISTINCT legal_person_id), 0), 0)), '%') AS `%_Aprovado`, 
     CONCAT(ROUND(COALESCE(COUNT(DISTINCT CASE WHEN razao = 'partner_automatically_reproved' THEN legal_person_id END) * 100.0 / NULLIF(COUNT(DISTINCT legal_person_id), 0), 0)), '%') AS `%_Negado`, 
     CONCAT(ROUND(COALESCE(COUNT(DISTINCT CASE WHEN razao IS NULL THEN legal_person_id END) * 100.0 / NULLIF(COUNT(DISTINCT legal_person_id), 0), 1)), '%') AS `%_Pendentes` 
-FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ` 
+FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado_PJ` 
 -- WHERE DATE(data_cadastro) >= CURRENT_DATE();
 
 */
@@ -805,7 +1130,7 @@ FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
 
 -- select count(*) as Volume, min(data_cadastro) as Prim_Registro, max(data_cadastro) as Ult_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_bd_zaig_PJ_novo`
 
--- select count(*) as Volume, min(data_cadastro) as Prim_Registro, max(data_cadastro) as Ult_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
+-- select count(*) as Volume, min(data_cadastro) as Prim_Registro, max(data_cadastro) as Ult_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado_PJ`
 
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -828,8 +1153,8 @@ Base_dados_Zaig_PJ as (
           distinct
           *
           from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ` 
-          where date(data_cadastro) >= current_date - 365
-          and decisao <> 'Pendente'
+          where --date(data_cadastro) >= current_date - 365 and
+          decisao <> 'Pendente'
           and legal_person_id like 'STO%'
 ), Base_Classificacao_decisao_Zaig_PJ as (
           select
@@ -898,7 +1223,42 @@ group by 1,2,3,4,5,6,7,8,9
 ;
 
 
+-- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Motor_Zaig_UltimaDecisao_Analise` 
 
+--======================================================================================
+--> MONITORAMENTO MOTOR PREVENÇAO FRAUDE - ONBOARDING  MES - 90 DIAS - ULTIMA DECISÃO CPF
+--======================================================================================
+
+
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Motor_Zaig_UltimaDecisao_Analise` AS 
+
+with
+
+Base_Zaig as (
+
+select 
+Hr_Cadastro
+,Flag_Filtro_Dias
+,Flag_Fase
+
+,Sum(if(Flag_Decisao_Motor = 'Aprovado', qtd_cliente,0)) as Qtd_Apr
+,Sum(if(Flag_Decisao_Motor = 'Negado', qtd_cliente,0)) as Qtd_Neg
+,sum(qtd_cliente) as qtd_Total
+from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Motor_Zaig_UltimaDecisao`
+group by 1,2,3
+
+)
+
+select
+Hr_Cadastro
+,Flag_Filtro_Dias
+,Flag_Fase
+,Qtd_Apr
+,Qtd_Apr/qtd_Total as PercApr
+,Qtd_Neg
+,Qtd_Neg/qtd_Total as PercNeg
+,qtd_Total
+from Base_Zaig
 
 
 
