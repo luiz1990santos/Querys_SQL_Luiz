@@ -1,5 +1,5 @@
 /*
-
+Tb_AllowMe_Staging_Area_New
 CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Chargeback_PayPal_Staging_Area_TESTE` 
 AS
 SELECT *
@@ -17,13 +17,15 @@ FROM `eai-data-sandbox.eai-prevencao-fraudes.Chargeback_PayPal_Staging_Area*.csv
 /*
 ------------------------------------------------
                                                |
---  Tb_AllowMe_Staging_Area                    |
+--  Tb_AllowMe_Staging_Area_New                | 
                                                |
 --  Tb_Zaig_Staging_Area                       |
                                                |
 --  Tb_Zaig_PJ_Staging_Area                    |
                                                |
 --  Tb_Unico_SMS_Staging_Area                  |
+                                               |
+--  Tb_Unico_Analistas_Staging_Area            |
                                                |
 --  Tb_Unico_BIO_Staging_Area                  |
                                                |
@@ -32,28 +34,6 @@ FROM `eai-data-sandbox.eai-prevencao-fraudes.Chargeback_PayPal_Staging_Area*.csv
 --  Tb_Chargeback_PayPal_Staging_Area          |
                                                |
 ------------------------------------------------
-*/
-
-
-/*
-------------------------------------------------------------------
--- MAIOR E MENOR DATA DOS FORNECEDORES EMPILLHADOS               |
-------------------------------------------------------------------
-with bases_fornecedores as (
-select '01 - Allow Me' as Fornecedor, min(date(created_at)) as Primeiro_Registro, max(date(created_at)) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe`
-union all 
-select '02 - Zaig' as Fornecedor, min(date(data_cadastro)) as Primeiro_Registro, max(date(data_cadastro)) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig`
-union all
-select '03 - Zaig PJ' as Fornecedor, min(date(data_cadastro)) as Primeiro_Registro, max(date(data_cadastro)) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
-union all
-select '04 - Unico SMS' as Fornecedor, min(date(DATA_ENVIO_SMS)) as Primeiro_Registro, max(date(DATA_ENVIO_SMS)) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist`
-union all
-select '05 - Unico BIO' as Fornecedor, min(date(created_at)) as Primeiro_Registro, max(date(created_at)) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_BIO_Cadastrada_3`
-union all
-select '06 - PayPal Aéreas' as Fornecedor, min(date(Created_Datetime)) as Primeiro_Registro, max(date(Created_Datetime)) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Transacional_Aereas_PayPal_V2`
-union all
-select '07 - PayPal Dispute' as Fornecedor,min(Effective_Date) as Primeiro_Registro, max(Effective_Date) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Base_Consolidada_PayPal_DataLake_cbk_historico`
-) select * from bases_fornecedores order by 1;
 */
 
 
@@ -83,100 +63,211 @@ transaction_id:STRING
 ,integration:STRING
 ,user_id:STRING
 ,ip_address:STRING
-,browser:STRING
-,browser_version:STRING
-,browser_canvasFP:STRING
-,browser_language:STRING
-,browser_webglFP:STRING
-,browser_audioFP:STRING
-,browser_cookie:STRING
-,os_audioStackInfo:STRING
-,os_graphicBoard:STRING
 ,os_platform:STRING
-,os_numberOfCPUCores:STRING
-,os_memory:STRING
 ,app_id:STRING
-,network_operator:STRING
 ,mobile_model_name:STRING
 ,mobile_manufacturer_name:STRING
 ,mobile_os_name:STRING
 ,mobile_os_version:STRING
+,device_location_latitude:STRING
+,device_location_longitude:STRING
 ,contextual_id:STRING
 ,new_device:STRING
-,similarity_percentage:STRING
-,authorized:STRING
-,authorized_at:STRING
-,fraud:STRING
 ,rules_matched:STRING
 ,rules_details:STRING
 ,metadata:STRING
 ,score_classification:STRING
 ,score:STRING
+,device_blocklisted:STRING
+,device_network_effect_blocklisted:STRING
+,risk_level:STRING
+,ip_location_latitude:STRING
+,ip_location_longitude:STRING
 */
 
------------------------------------------------------------------------------------
--- MENOR E MAIOR DATA Tb_AllowMe_Staging_Area                                     |
------------------------------------------------------------------------------------
--- select min(created_at) as Primeiro_Registro, max(created_at) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_AllowMe_Staging_Area`;
-
 
 -----------------------------------------------------------------------------------
--- MENOR E MAIOR DATA Dw_AllowMe                                                  |
+-- DEPARA CLASSIFICAÇÃO ALLOWME                                                   |
 -----------------------------------------------------------------------------------
--- select min(created_at) min, max(created_at) max FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe`;
+-- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_DePara_Classificacao_AllowMe`;
+
+-----------------------------------------------------------------------------------
+-- MENOR E MAIOR DATA Tb_AllowMe_Staging_Area_New                                 |
+-----------------------------------------------------------------------------------
+-- select min(created_at) as Primeiro_Registro, max(created_at) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_AllowMe_Staging_Area_New`;
+
+
+-----------------------------------------------------------------------------------
+-- MENOR E MAIOR DATA Dw_AllowMe_V2                                               |
+-----------------------------------------------------------------------------------
+-- select min(created_at) min, max(created_at) max FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe_V2`;
 
 
 
---CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe` AS 
-
-INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe`
-
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe_V2` AS 
+--INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe_V2`
+    with base_allowme as (
         select 
+            transaction_id, 
+            similar_transaction_id, 
+            created_at,
+            SUBSTR(created_at, 1, 19) AS created_at_limpo,
+            --TIMESTAMP(cast(created_at as DATETIME) ,'America/Sao_Paulo') as created_at,
+            integration, 
+            user_id, 
+            ip_address, 
+            os_platform, 
+            app_id, 
+            mobile_model_name, 
+            mobile_manufacturer_name, 
+            mobile_os_name, 
+            mobile_os_version, 
+            device_location_latitude, 
+            device_location_longitude, 
+            contextual_id, 
+            new_device, 
+            rules_matched, 
+            rules_details, 
+            `metadata`, 
+            score_classification, 
+            cast(score as Numeric) as score, 
+            device_blocklisted, 
+            device_network_effect_blocklisted, 
+            cast(risk_level as Numeric) as risk_level, 
+            ip_location_latitude, 
+            ip_location_longitude
+            FROM  `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_AllowMe_Staging_Area_New` 
+            
+    ), base_limpeza_datas as ( 
+            SELECT
+                transaction_id, 
+                similar_transaction_id, 
+                CASE
+                    -- Caso o formato seja 'YYYY-MM-DD HH:MM:SS'
+                    WHEN REGEXP_CONTAINS(created_at_limpo, r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$') THEN PARSE_DATETIME('%Y-%m-%d %H:%M:%S', created_at_limpo) 
+                    -- Caso o formato seja 'DD/MM/YYYY HH:MM'
+                    WHEN REGEXP_CONTAINS(created_at, r'^\d{2}/\d{2}/\d{4} \d{2}:\d{2}$') THEN PARSE_DATETIME('%d/%m/%Y %H:%M', created_at)
+                    -- Caso o formato não corresponda a nenhum dos padrões
+                    ELSE NULL
+                END AS dt_allowme,
+                integration, 
+                user_id, 
+                LPAD(CAST(user_id AS STRING), 11, '0') AS cpf_completo,
+                ip_address, 
+                os_platform, 
+                app_id, 
+                mobile_model_name, 
+                mobile_manufacturer_name, 
+                mobile_os_name, 
+                mobile_os_version, 
+                device_location_latitude, 
+                device_location_longitude, 
+                contextual_id, 
+                new_device, 
+                rules_matched, 
+                rules_details, 
+                `metadata`, 
+                score_classification, 
+                score, 
+                device_blocklisted, 
+                device_network_effect_blocklisted, 
+                risk_level, 
+                depara.Classificacao,
+                CASE 
+                    WHEN  /*
+                        rules_matched = '9' or 
+                        rules_matched like '9,%' or 
+                        */
+                        rules_matched like '%12%' or 
+                        /*
+                        rules_matched like '%16%' or 
+                        rules_matched like '%17%' or
+                        */ 
+                        rules_matched like '%28%' or 
+                        rules_matched like '%34%' or 
+                        rules_matched like '39%' or 
+                        /*
+                        rules_matched like '%48%' or 
+                        */
+                        rules_matched like '%51%' 
+                        /*
+                        rules_matched like '%52%' or 
+                        rules_matched like '%62%' 
+                        */
+                     THEN 'Negado'
+                     ELSE 'Aprovado'
+                end as Flag_Regras,
+                CASE    
+                    WHEN device_blocklisted = 'true' THEN 'Sim'
+                    WHEN device_blocklisted = 'false' THEN 'Não'
+                    else 'Não definido'
+                end as Flag_device_lista_bloqueados,
+                CASE    
+                    WHEN device_network_effect_blocklisted = 'true' THEN 'Sim'
+                    WHEN device_network_effect_blocklisted = 'false' THEN 'Não'
+                    else 'Não definido'
+                end as Flag_device_lista_bloqueados_por_efeito_rede,
+                CASE    
+                    WHEN new_device = 'true' THEN 'NOVO'
+                    WHEN new_device = 'false' THEN 'CONHECIDO' 
+                    ELSE 'Sem definição'
+                END as Flag_Dispositivo,
+                ip_location_latitude, 
+                ip_location_longitude
+        FROM base_allowme as allowme
+        left join `eai-datalake-data-sandbox.analytics_prevencao_fraude.tb_DePara_Classificacao_AllowMe` as depara
+        on allowme.risk_level = depara.Codigo
+    ) 
+     select 
         distinct
-         a.transaction_id
-        ,a.similar_transaction_id
-        --,a.created_at
-        ,cast( a.created_at as DATETIME) as created_at_dtAllowme
-        ,TIMESTAMP(cast( a.created_at as DATETIME) ,'America/Sao_Paulo') as created_at
-        --,DATETIME(a.created_at,'America/Sao_Paulo')
-        --,DATETIME(TIMESTAMP(DATETIME(a.created_at,'America/Sao_Paulo')))as created_at
-        ,a.integration
-        ,a.user_id
-        ,a.ip_address
-        ,a.browser
-        ,a.browser_version
-        ,a.browser_canvasFP
-        ,a.browser_language
-        ,a.browser_webglFP
-        ,a.browser_audioFP
-        ,a.browser_cookie
-        ,a.os_audioStackInfo
-        ,a.os_graphicBoard
-        ,a.os_platform
-        ,a.os_numberOfCPUCores
-        ,a.os_memory
-        ,a.app_id
-        ,a.network_operator
-        ,a.mobile_model_name
-        ,a.mobile_manufacturer_name
-        ,a.mobile_os_name
-        ,a.mobile_os_version
-        ,a.contextual_id
-        ,a.new_device
-        ,a.similarity_percentage
-        ,a.authorized
-        ,a.authorized_at
-        ,a.fraud
-        ,a.rules_matched
-        ,a.rules_details
-        ,a.metadata
-        ,a.score_classification
-        ,cast(a.score as Numeric) as score
-        FROM  `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_AllowMe_Staging_Area` a
-        --where a.integration != 'integration'
-        where TIMESTAMP(a.created_at) >= (select max(TIMESTAMP(created_at_dtAllowme)) FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe` )
-
+            transaction_id, 
+            similar_transaction_id, 
+            dt_allowme,
+            TIMESTAMP(cast(dt_allowme as DATETIME) ,'America/Sao_Paulo') as created_at,
+            integration, 
+            user_id, 
+            cpf_completo,
+            ip_address, 
+            os_platform, 
+            app_id, 
+            mobile_model_name, 
+            mobile_manufacturer_name, 
+            mobile_os_name, 
+            mobile_os_version, 
+            device_location_latitude, 
+            device_location_longitude, 
+            contextual_id, 
+            new_device, 
+            rules_matched, 
+            rules_details, 
+            `metadata`, 
+            score_classification, 
+            score, 
+            device_blocklisted, 
+            device_network_effect_blocklisted, 
+            risk_level, 
+            case
+                when Classificacao is null then 'Não classificado'
+                else Classificacao 
+            end as classificacao,
+            Flag_Regras,
+            CONCAT(
+                (SELECT STRING_AGG(
+                    CONCAT(
+                        JSON_VALUE(variable, '$.name')
+                    ), 
+                    ' | '
+                ) FROM UNNEST(JSON_EXTRACT_ARRAY(rules_details, '$')) AS variable)
+            ) AS indicators,
+            Flag_device_lista_bloqueados,
+            Flag_device_lista_bloqueados_por_efeito_rede,
+            Flag_Dispositivo,
+            ip_location_latitude, 
+            ip_location_longitude
+    FROM  base_limpeza_datas
+    --where TIMESTAMP(a.created_at) >= (select max(TIMESTAMP(created_at_dtAllowme)) FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe_V2` )
 ;
+
 
  
 
@@ -213,6 +304,9 @@ INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe`
 
 --CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_bd_zaig` AS 
 --select distinct *from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_bd_zaig`
+
+/*
+
 INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_bd_zaig` 
 
     select 
@@ -254,6 +348,8 @@ INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_bd_zaig`
 
 
 ;
+
+
 
 --CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` AS 
 --select distinct *from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig`
@@ -297,6 +393,9 @@ INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig`
         where TIMESTAMP(data_cadastro) >= (select max(TIMESTAMP(data_cadastro)) FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` )
 
 ;
+
+
+*/
 
 /*
 select date(data_cadastro), count(*) from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig` group by 1 order by 1
@@ -444,7 +543,7 @@ distinct
   a.SCORE,
   CURRENT_DATE AS DataInclusaoBase
 FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area` a
-where date(a.DATA_ENVIO_SMS) > (select max(date(DATA_ENVIO_SMS)) FROM  `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist` )
+where date(a.DATA_ENVIO_SMS) >= (select max(date(DATA_ENVIO_SMS)) FROM  `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist` )
 order by 1 desc
 ;
 
@@ -538,6 +637,84 @@ join base_UltimoScore ultSocre on ultSocre.CPF = Bio.CPF and ultSocre.SCORE = Bi
 order by 1,2 desc
 
 ;
+
+
+
+
+/* 
+--------------------------------------------------------------------------
+                                                                         |
+                                                                         |
+  CRIAÇÃO DA Tb_Unico_Analistas                                          |
+  NECESSÁRIOS DA Tb_Unico_Analistas_Staging_Area                         |
+                                                                         |
+                                                                         |
+  DELIMITADOR DE CAMPOS: PONTO E VIRGULA                                 |   
+                                                                         |
+--------------------------------------------------------------------------
+*/ 
+
+-----------------------------------------------------------------------------------
+-- MENOR E MAIOR DATA Tb_Unico_Analistas_Staging_Area                                   |
+-----------------------------------------------------------------------------------
+-- select min(DATA_A____O) as Primeiro_Registro, max(DATA_A____O) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_Analistas_Staging_Area`;
+
+
+-----------------------------------------------------------------------------------
+-- MENOR E MAIOR DATA Tb_Unico_Analistas_Staging_Area                                         |
+-----------------------------------------------------------------------------------
+-- select count(*) volume, min(created_at) as Primeiro_Registro, max(created_at) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_Analistas_Staging_Area`;
+
+
+-----------------------------------------------------------------------------------
+-- MENOR E MAIOR DATA Tb_Unico_Analistas_Staging_Area                                         |
+-----------------------------------------------------------------------------------
+-- select count(*) volume, min(created_at) as Primeiro_Registro, max(created_at) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_Analistas_Staging_Area`;
+
+CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_Analistas` AS 
+
+with
+base as (
+    select 
+    distinct 
+        REPLACE(REPLACE(CNPJ_CPF,'.', ''),'-', '') as CPF, 
+        --NOME, 
+        SCORE_SUSPEITO, 
+        --SCORE, 
+        --PARCEIRO, 
+        --REGIONAL, 
+        --FILIAL, 
+        A____O as ACAO, 
+        RESPONS__VEL as RESPONSAVEL, 
+        DATA_A____O as DATA_ACAO,
+        RANK() OVER (PARTITION BY CNPJ_CPF ORDER BY DATA_A____O desc) AS Rank_Ult_Atual
+
+
+FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_Analistas_Staging_Area` 
+--where DATA is not null
+order by 1 
+
+), chamado_acao as (
+select 
+    *,
+    case
+        when DT_CRIACAO >= DATA_ACAO then 'Chamado na data ou após ação'
+        else 'Chamado antigo'
+    end as flag_acao
+
+from base as analista
+join `eai-datalake-data-sandbox.siebel.chamados` as chamado
+on analista.CPF = chamado.CPF
+where Rank_Ult_Atual = 1 
+) select * from chamado_acao where RESPONSAVEL = 'ANEZIA.BRITO' 
+
+
+
+;
+
+
+
+
 
 
 
@@ -984,3 +1161,99 @@ where Effective_Date >= (select max(Effective_Date) FROM `eai-datalake-data-sand
 
 
 -- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Base_Consolidada_PayPal_DataLake_V2`
+
+
+
+------------------------------------------------------------------
+-- MAIOR E MENOR DATA DOS FORNECEDORES EMPILLHADOS               |
+------------------------------------------------------------------
+with bases_fornecedores as (
+select '01 - Allow Me' as Fornecedor, count(*) as Volume, min(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', timestamp(dt_allowme))) as Primeiro_Registro, max(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(dt_allowme))) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_AllowMe_V2`
+union all 
+select '02 - Zaig' as Fornecedor, count(*) as Volume, min(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(data_cadastro))) as Primeiro_Registro, max(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(data_cadastro))) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_Consolidado`
+union all
+select '03 - Zaig PJ' as Fornecedor, count(*) as Volume, min(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(data_cadastro))) as Primeiro_Registro, max(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(data_cadastro))) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
+union all
+select '04 - Unico SMS' as Fornecedor, count(*) as Volume, min(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(DATA_ENVIO_SMS))) as Primeiro_Registro, max(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(DATA_ENVIO_SMS))) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist`
+union all
+select '05 - Unico BIO' as Fornecedor, count(*) as Volume, min(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(created_at))) as Primeiro_Registro, max(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(created_at))) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_BIO_Cadastrada_3`
+union all
+select '06 - PayPal Aéreas' as Fornecedor, count(*) as Volume, min(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(Created_Datetime))) as Primeiro_Registro, max(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(Created_Datetime))) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Transacional_Aereas_PayPal_V2`
+union all
+select '07 - PayPal Dispute' as Fornecedor, count(*) as Volume, min(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(Effective_Date))) as Primeiro_Registro, max(FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S',timestamp(Effective_Date))) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Base_Consolidada_PayPal_DataLake_cbk_historico`
+) select * from bases_fornecedores order by 1;
+
+
+
+------------------------------------------------------------
+-- importar bloqueios realizados massivamene               |
+-- Tb_Clientes_Bloqueio_Massivo                            |
+------------------------------------------------------------
+
+-- select * from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo` order by 3 desc
+
+
+
+--------------------------------------
+-- Menor e Maior data de Bloqueio    | 
+-------------------------------------- 
+
+/*
+ 
+WITH cte AS (
+    SELECT 
+        Lote,
+        Motivo,
+        ROW_NUMBER() OVER (ORDER BY Lote ASC) as Primeiro,
+        ROW_NUMBER() OVER (ORDER BY Lote DESC) as Ultimo
+    FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo_2`
+)
+SELECT 
+    (SELECT Lote FROM cte WHERE Primeiro = 1) as Primeira_Dt_Bloqueios,
+    (SELECT Lote FROM cte WHERE Ultimo = 1) as Ultima_Dt_Bloqueios,
+    (SELECT Motivo FROM cte WHERE Primeiro = 1) as Primeiro_Motivo,
+    (SELECT Motivo FROM cte WHERE Ultimo = 1) as Ultimo_Motivo
+*/
+
+/*
+
+
+create or replace table `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo_2` as 
+  with 
+  base_bloqueios_massivo as (
+  select *, LPAD(CAST(CPF AS STRING), 11, '0') AS cpf_completo from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo`
+)select distinct * from base_bloqueios_massivo where cpf_completo <> '00000000000' order by Lote
+
+;
+
+*/
+
+/*
+ 
+ select 
+    min(Lote) as Primeira_Dt_Bloqueios, 
+    max(Lote) as Ultima_Dt_Bloqueios,
+    count(*) as Quantidade_Bloqueios
+ from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo_2`
+
+*/
+
+
+/*
+with
+base_bloqueioMassivo as (
+SELECT
+ distinct
+ CustomerID
+,CPF
+,Lote
+,Motivo
+,RANK() OVER (PARTITION BY CPF ORDER BY Lote desc) AS Rank_Bloqueio
+
+FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Clientes_Bloqueio_Massivo` 
+order by 2,3 desc
+) select * from base_bloqueioMassivo where Rank_Bloqueio = 1
+*/
+
+
+
