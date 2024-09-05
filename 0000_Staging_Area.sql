@@ -501,6 +501,7 @@ INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
                                                                          |
   CRIAÇÃO DA Tabela_Unico_SMS_BIO_Telefone_Hist COM AS CAMPOS            |
   NECESSÁRIOS DA Tb_Unico_SMS_Staging_Area                               |
+  BASE de LIMPEZA                                                        |
                                                                          |
                                                                          |
   DELIMITADOR DE CAMPOS: PONTO E VIRGULA                                 |   
@@ -509,10 +510,65 @@ INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
 */ 
 
 -----------------------------------------------------------------------------------
--- MENOR E MAIOR DATA Tb_Unico_SMS_Staging_Area                               |
+-- MENOR E MAIOR DATA Tb_Unico_SMS_Staging_Area                                   |
 -----------------------------------------------------------------------------------
 -- select count(*) volume, min(DATA_ENVIO_SMS) as Primeiro_Registro, max(DATA_ENVIO_SMS) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area`;
 
+-----------------------------------------------------------------------------------
+-- MENOR E MAIOR DATA Tb_Unico_SMS_Staging_Area_2                                 |
+-----------------------------------------------------------------------------------
+-- select count(*) volume, min(DATA_ENVIO_SMS) as Primeiro_Registro, max(DATA_ENVIO_SMS) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area_2`;
+
+create or replace table `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area_2` as
+with limpeza_unico_sms as (
+    select 
+      SUBSTR(DATA_ENVIO_SMS, 1, 19) as DATA_ENVIO_LIMPA,
+      CPF, 
+      NOME, 
+      E_MAIL, 
+      TELEFONE, 
+      PEDIDO, 
+      TEMPLATE, 
+      ENVIO_SMS, 
+      ETAPA_SMS, 
+      LIVENESS, 
+      TIPIFICACAO, 
+      FACEMATCH, 
+      OCRCODE, 
+      RESULTADO_ANALISE, 
+      DURACAO, 
+      REPLACE(SCORE,',','.') AS SCORE, 
+      DOCUMENTO_REUTILIZADO 
+      from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area` 
+    ), limpeza_unico_sms2 as ( 
+                SELECT
+                    CASE
+                        -- Caso o formato seja 'YYYY-MM-DD HH:MM:SS'
+                        WHEN REGEXP_CONTAINS(DATA_ENVIO_LIMPA, r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$') THEN PARSE_DATETIME('%Y-%m-%d %H:%M:%S', DATA_ENVIO_LIMPA) 
+                        -- Caso o formato seja 'DD/MM/YYYY HH:MM'
+                        WHEN REGEXP_CONTAINS(DATA_ENVIO_LIMPA, r'^\d{2}/\d{2}/\d{4} \d{2}:\d{2}$') THEN PARSE_DATETIME('%d/%m/%Y %H:%M', DATA_ENVIO_LIMPA)
+                        -- Caso o formato não corresponda a nenhum dos padrões
+                        ELSE NULL
+                    END AS DATA_ENVIO_SMS,
+                    CPF, 
+                    NOME, 
+                    E_MAIL, 
+                    TELEFONE, 
+                    PEDIDO, 
+                    TEMPLATE, 
+                    ENVIO_SMS, 
+                    ETAPA_SMS, 
+                    LIVENESS, 
+                    TIPIFICACAO, 
+                    FACEMATCH, 
+                    OCRCODE, 
+                    RESULTADO_ANALISE, 
+                    DURACAO, 
+                    CAST(SCORE AS FLOAT64) AS SCORE, 
+                    DOCUMENTO_REUTILIZADO
+          from limpeza_unico_sms
+    ) select * from limpeza_unico_sms2
+    ;
 
 -----------------------------------------------------------------------------------
 -- MENOR E MAIOR DATA Tabela_Unico_SMS_BIO_Telefone_Hist                               |
@@ -520,7 +576,7 @@ INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Dw_Zaig_PJ`
 -- select count(*) volume, min(DATA_ENVIO_SMS) as Primeiro_Registro, max(DATA_ENVIO_SMS) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist`;
 
 
---CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist`  AS
+-- CREATE OR REPLACE TABLE `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist`  AS
 INSERT INTO `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist` 
 
 SELECT
@@ -535,14 +591,14 @@ distinct
   a.ENVIO_SMS,
   a.ETAPA_SMS,
   a.LIVENESS,
-  a.TIPIFICA____O as TIPIFICACAO,
+  a.TIPIFICACAO,
   a.FACEMATCH,
   a.OCRCODE,
-  a.RESULTADO_AN__LISE as RESULTADO_ANALISE,
-  a.DURA____O as DURACAO,
-  a.SCORE,
+  a.RESULTADO_ANALISE,
+  a.DURACAO,
+  CAST(a.SCORE AS INT64) AS SCORE,
   CURRENT_DATE AS DataInclusaoBase
-FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area` a
+FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area_2` a
 where date(a.DATA_ENVIO_SMS) >= (select max(date(DATA_ENVIO_SMS)) FROM  `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tabela_Unico_SMS_BIO_Telefone_Hist` )
 order by 1 desc
 ;
@@ -566,8 +622,37 @@ order by 1 desc
 -----------------------------------------------------------------------------------
 -- MENOR E MAIOR DATA Tb_Unico_BIO_Staging_Area                                   |
 -----------------------------------------------------------------------------------
--- select count(*) volume, min(DATA) as Primeiro_Registro, max(DATA) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_BIO_Staging_Area`;
+-- select count(*) volume, min(DATA_BIO) as Primeiro_Registro, max(DATA_BIO) as Ultimo_Registro from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_BIO_Staging_Area`;
 
+create or replace table `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_BIO_Staging_Area_2` as
+with limpeza_unico_bio as (
+    select 
+      CPF,  
+      SUBSTR(DATA_BIO, 1, 19) as DATA_BIO_LIMPA,
+      LOJA, 
+      LIVENESS, 
+      RESULTADO, 
+      METODO
+      from `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_BIO_Staging_Area` 
+ ), limpeza_unico_bio2 as ( 
+                SELECT
+                    CPF,
+                    CASE
+                        -- Caso o formato seja 'YYYY-MM-DD HH:MM:SS'
+                        WHEN REGEXP_CONTAINS(DATA_BIO_LIMPA, r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$') THEN PARSE_DATETIME('%Y-%m-%d %H:%M:%S',DATA_BIO_LIMPA) 
+                        -- Caso o formato seja 'DD/MM/YYYY HH:MM'
+                        WHEN REGEXP_CONTAINS(DATA_BIO_LIMPA, r'^\d{2}/\d{2}/\d{4} \d{2}:\d{2}$') THEN PARSE_DATETIME('%d/%m/%Y %H:%M', DATA_BIO_LIMPA)
+                        -- Caso o formato não corresponda a nenhum dos padrões
+                        ELSE NULL
+                    END AS DATA,
+                    LOJA, 
+                    LIVENESS, 
+                    RESULTADO, 
+                    METODO
+                    
+          from limpeza_unico_bio
+    ) select * from limpeza_unico_bio2
+    ;
 
 -----------------------------------------------------------------------------------
 -- MENOR E MAIOR DATA Tb_BIO_Cadastrada_2                                         |
@@ -595,7 +680,7 @@ REPLACE(REPLACE(CPF,'.', ''),'-', '') as CPF
 ,RANK() OVER (PARTITION BY CPF ORDER BY DATA desc) AS Rank_Ult_Atual
 
 
-FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_BIO_Staging_Area` 
+FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_BIO_Staging_Area_2` 
 where DATA is not null
 order by 1 
 
@@ -614,7 +699,7 @@ select
 CPF
 ,max(DATA_ENVIO_SMS) as DATA_ENVIO_SMS
 ,max(SCORE) as SCORE
-FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area` 
+FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area_2` 
 group by 1
 )
 select 
@@ -631,7 +716,7 @@ cast(ultSocre.CPF as STRING) as CPF
   else 'SemRetorno' end as Resultado
 ,Bio.TEMPLATE as Origem
 ,RANK() OVER (PARTITION BY ultSocre.CPF ORDER BY ultSocre.DATA_ENVIO_SMS desc) AS Rank_Ult_Atual
-FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area` Bio
+FROM `eai-datalake-data-sandbox.analytics_prevencao_fraude.Tb_Unico_SMS_Staging_Area_2`  Bio
 join base_UltimoScore ultSocre on ultSocre.CPF = Bio.CPF and ultSocre.SCORE = Bio.SCORE
 --where Bio.CPF = 10069686440
 order by 1,2 desc
